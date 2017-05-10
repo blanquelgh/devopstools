@@ -11,10 +11,5 @@ newContentFolder.title= json.get("request");
 newContentFolder.properties.encoding = "UTF-8";
 newContentFolder.save();
 
-//model.requestcontent = newContentFolder.name;
-//newContentFolder.setName(requestbody.content);
-//newContentFolder.properties.encoding = "UTF-8";
-//newContentFolder.properties["cm:description"] ="prueba 123";
-//newContentFolder.properties["cm:title"] = "titulo prueba 123";
 model.requestcontent = newContentFolder;
-//model.requestcontent = resultsqry;
+
