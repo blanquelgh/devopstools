@@ -42,7 +42,7 @@ pipeline{
                                           echo $auth_token
                                           echo $ctos
                                           
-                                          oc login https://api.${ctos}.paas.gsnetcloud.corp:8443 --insecure-skip-tls-verify=true --token=$auth_token
+                                          oc login https://url:8443 --insecure-skip-tls-verify=true --token=$auth_token
                                           oc project $app_name
                                           oc set env dc/$dc_name ARTIFACT_URL=$dc_artifact_url '''
                                 }
