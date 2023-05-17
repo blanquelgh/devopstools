@@ -1,0 +1,19 @@
+node('ose3-deploy'){
+    stage('Consulta de los pods'){
+    sh """
+    mkdir cto1
+    cd cto1
+    oc login https://api.cto1.paas.gsnetcloud.corp:8443 --insecure-skip-tls-verify=true -u=X934425 -p=haHw6799;
+    echo 'for i in $(oc get project | grep -e "-pro" | awk {'print $1'}); do
+    namespace=$i
+    echo '| $namespace | *************************** | cto1' >$namespace.csv
+    echo '| MICROSERVICIO | IMAGEN | RUTA | WILLY | Validación Front | TR Backend Warning | TR Backend Critical |' >>$namespace.csv
+    echo '' >>$namespace.csv; done' > script.sh
+    cat *.csv > resultado_cto1.csv
+    chmod 755 script.sh
+    """
+    }
+    stage('Se ejecuta script'){
+    sh('script.sh')
+    }
+}

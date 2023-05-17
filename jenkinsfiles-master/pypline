@@ -1,0 +1,72 @@
+properties([gitLabConnection('Pandora GitLab'), [$class: 'RebuildSettings', autoRebuild: false, rebuildDisabled: false], parameters([string(defaultValue: 'x909936', description: '', name: 'USERNAME'), password(defaultValue: 'yor_password', description: 'The user X  password', name: 'PASSWD'), [$class: 'ChoiceParameter', choiceType: 'PT_SINGLE_SELECT', description: '', filterLength: 1, filterable: false, name: 'CTOS_SERVER', randomName: 'choice-parameter-6477896763370114', script: [$class: 'GroovyScript', fallbackScript: [classpath: [], sandbox: false, script: ''], script: [classpath: [], sandbox: false, script: 'return [\'cto1\':\'CTO1\',\'cto2\':\'CTO2\',]']]], string(defaultValue: 'mxsherpaahorro-dev', description: '', name: 'NAMESPACE'), string(defaultValue: 'http://gitlab.pro.pandora.mx.corp/mx-santander-sherpaahorro/ubank-artefactos', description: '', name: 'URL_GIT'), string(defaultValue: 'django-ubankapi.tgz', description: '', name: 'ARTIFACT_NAME'), string(defaultValue: 'maven-release', description: '', name: 'NEXUS_DIRBASE'), string(defaultValue: 'mxsherpaahorro', description: '', name: 'GROUP_ID'), string(defaultValue: 'ubank-api', description: '', name: 'ARTIFACT_ID'), string(defaultValue: '0.1.6-RELEASE', description: '', name: 'VERSION'), string(defaultValue: 'tgz', description: '', name: 'ARTIFACT_TYPE'), string(defaultValue: 'ubank-backend', description: '', name: 'MICRO_SERVICE'), string(defaultValue: '/opt/django-ubankapi/lib/MySQLdb/', description: '', name: 'LD_LIBRARY_PATH'), [$class: 'ChoiceParameter', choiceType: 'PT_SINGLE_SELECT', description: '', filterLength: 1, filterable: false, name: 'EXTRA_SERVER', randomName: 'choice-parameter-6476034131166138', script: [$class: 'GroovyScript', fallbackScript: [classpath: [], sandbox: false, script: ''], script: [classpath: [], sandbox: false, script: 'return [\'yes\':\'YES\',\'no\':\'NO\',]']]], string(defaultValue: 'http://config-service:8080/', description: '', name: 'CONFIG_SERVICE_URL'), [$class: 'ChoiceParameter', choiceType: 'PT_SINGLE_SELECT', description: '', filterLength: 1, filterable: false, name: 'CONTINUE_PROJECT', randomName: 'choice-parameter-6476034131166138', script: [$class: 'GroovyScript', fallbackScript: [classpath: [], sandbox: false, script: ''], script: [classpath: [], sandbox: false, script: 'return [\'yes\':\'YES\',\'no\':\'NO\',]']]]])])
+
+env.NPASSWD="upload"
+        
+node('ose3-deploy')
+    {
+    
+            	  
+        dir('clonning-pycode') {
+        stage 'conning-pycode' 
+        task 'Clonning python artifact from git repository'
+            wrap([$class: 'MaskPasswordsBuildWrapper', varPasswordPairs: [[password: "${env.PASSWD}", var: 'PASSWD']]]){
+                sh '''#!/usr/bin/env bash
+                  
+                      curl ${URL_GIT}/raw/master/${ARTIFACT_NAME} > /tmp/${ARTIFACT_NAME}
+                      ls -lrt /tmp/ '''
+        
+    		}
+    	}
+    	
+    	dir('build-curl-to-nexus'){
+    	stage 'build-curl-to-nexus'
+    	task 'create curl sentense to upload to nexus'
+    	    sh '''#!/usr/bin/env bash
+    	    
+    	          echo " --upload-file /tmp/${ARTIFACT_NAME} http://nexus.pro.pandora.mx.corp/repository/$NEXUS_DIRBASE/$GROUP_ID/$ARTIFACT_ID/$VERSION/$ARTIFACT_ID-$VERSION.$ARTIFACT_TYPE" >> /tmp/curls.txt
+                  echo "http://nexus.pro.pandora.mx.corp/repository/$NEXUS_DIRBASE/$GROUP_ID/$ARTIFACT_ID/$VERSION/$ARTIFACT_ID-$VERSION.$ARTIFACT_TYPE""|"$MICRO_SERVICE >> /tmp/urls_dc.txt
+                  cat /tmp/urls_dc.txt          
+    	          cat /tmp/curls.txt '''
+        }
+        
+        dir('upload-to-nexus'){
+    	stage 'upload-streaming'
+    	task 'execute all sentenses with curl statement'
+    	    wrap([$class: 'MaskPasswordsBuildWrapper', varPasswordPairs: [[password: "${env.NPASSWD}", var: 'NPASSWD']]]){
+                sh '''#!/usr/bin/env bash
+            	     
+        		      while IFS= read -r lineupld
+                      do
+                          curl -v -u $NPASSWD:$NPASSWD $lineupld
+                          
+                      done < /tmp/curls.txt '''
+            }	
+        }
+        
+        dir('namespace-updating'){
+    	stage 'namespace-updating'
+    	task 'updating ms in openshift'
+    	    wrap([$class: 'MaskPasswordsBuildWrapper', varPasswordPairs: [[password: "${PASSWD}", var: 'PASSWD']]]){
+                sh '''#!/usr/bin/env bash
+                      echo "============>Inicia Stage para actualizacion en openshift<============"
+                      var=`cat /tmp/podflag`
+                	  dconfig=`echo ${var::-9}`
+                      echo "DC a actualizar: " $dconfig
+                      cat /tmp/urls_dc.txt
+                      
+                      oc login https://api.${CTOS_SERVER}.paas.gsnetcloud.corp:8443 --insecure-skip-tls-verify=true -u${USERNAME} -p${PASSWD}
+                      oc project ${NAMESPACE}
+                      
+                      while IFS= read -r linedc
+                      do
+                          dc_artifact_url=`echo "$linedc" | awk -F'|' '{print $1}'`
+                          dc_name=`echo "$linedc" | awk -F'|' '{print $2}'`
+                          
+                          oc set env dc/$dc_name ARTIFACT_URL=$dc_artifact_url CONTINUE_PROJECT=${CONTINUE_PROJECT^^} EXTRA_SERVER=${EXTRA_SERVER^^} CONFIG_SERVICE_URL=${CONFIG_SERVICE_URL} LD_LIBRARY_PATH=${LD_LIBRARY_PATH}
+                          
+                              
+                      done < /tmp/urls_dc.txt '''
+            }
+        }
+
+    }

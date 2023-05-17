@@ -1,0 +1,55 @@
+pipeline{
+
+    agent {node{label 'ose3-deploy'}}
+    
+    tools {
+        maven 'Maven3'
+        jdk 'JDK8'
+    }
+    
+     parameters {
+        string(name: 'POM_GROUPID', defaultValue: 'none', description: 'dev')
+    }
+
+ 
+        stages { 
+   
+                    stage ('Initialize') {
+                    
+                        steps {
+                            script {
+                                def proceed = true
+                                try {
+                                    timeout(time: 15, unit: 'MINUTES') {
+                                        input(message: 'Quieres desplegar en el ambiente de Certificacion?')
+                                    }
+                                } catch (err) {
+                                    proceed = false
+                                }
+                                if(proceed) {
+                                
+                                    sh '''#!/usr/bin/env bash
+                                           
+                                          dc_artifact_url=`echo "${POM_GROUPID}" | awk -F'|' '{print $1}'`
+                                          dc_name=`echo "${POM_GROUPID}" | awk -F'|' '{print $2}'`
+                                          app_name=`echo "${POM_GROUPID}" | awk -F'|' '{print $3}'`
+                                          auth_token=`echo "${POM_GROUPID}" | awk -F'|' '{print $4}'`
+                                          ctos=`echo "${POM_GROUPID}" | awk -F'|' '{print $5}'`
+                                          
+                                          echo $dc_artifact_url
+                                          echo $dc_name
+                                          echo $app_name
+                                          echo $auth_token
+                                          echo $ctos
+                                          
+                                          oc login https://api.${ctos}.paas.gsnetcloud.corp:8443 --insecure-skip-tls-verify=true --token=$auth_token
+                                          oc project $app_name
+                                          oc set env dc/$dc_name ARTIFACT_URL=$dc_artifact_url '''
+                                }
+                            }
+                        }
+                    }
+    
+        }
+            
+}

@@ -1,0 +1,24 @@
+#### Valores conexion telegram
+telegram:
+  username: zuñiga_bot
+  token: "758390432:########################"
+  isbuffered: true
+  url: 'https://api.telegram.org/bot'
+
+#### Valores ejecucion drivers
+selenium:
+  path: /usr/bin/firefox
+geckrodiver:
+  path: /opt/geckodriver-0.23.0
+images:
+  tempdir: /tmp/
+
+#### Valores conexion
+apirest:
+  url: "https://..."
+obpyme:
+  urlfront: "https://..."
+cdpyme:
+  urlfront: "https://..."
+
+

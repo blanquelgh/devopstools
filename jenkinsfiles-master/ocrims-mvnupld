@@ -1,0 +1,104 @@
+properties([gitLabConnection('Pandora GitLab'), [$class: 'RebuildSettings', autoRebuild: false, rebuildDisabled: false], parameters([string(defaultValue: 'x909936', description: '', name: 'USERNAME'), password(defaultValue: 'yor_password', description: 'The user X  password', name: 'PASSWD'), string(defaultValue: 'https://api.cto1.paas.gsnetcloud.corp:8443', description: '', name: 'URLCTOS'), string(defaultValue: 'mxocrpymes1-dev', description: '', name: 'NAMESPACE'), string(defaultValue: '/data/importer/pruebasocr', description: '', name: 'ARTIFACTSPATH'), string(defaultValue: 'ocrjars.properties', description: '', name: 'PROPERTIESFILE')])])
+
+env.NPASSWD="upload"
+        
+node('ose3-deploy')
+    {
+    
+        
+    
+            	  
+        dir('download-streaming') {
+        stage 'download-streaming' 
+        task 'Loggin virtual repository'
+            wrap([$class: 'MaskPasswordsBuildWrapper', varPasswordPairs: [[password: "${env.PASSWD}", var: 'PASSWD']]]){
+            
+                sh '''#!/usr/bin/env bash
+                      echo ${BUILD_NUMBER}
+                      echo ${URLCTOS}
+                      oc login ${URLCTOS} --insecure-skip-tls-verify=true -u ${USERNAME} -p ${PASSWD}
+                      oc project $NAMESPACE '''
+            }
+
+            sh '''#!/usr/bin/env bash
+                  rm -rf /tmp/*.jar
+                  rm -rf /tmp/*.properties
+                  rm -rf /tmp/*.txt
+                  
+                  oc get pods | grep importer | awk '{print $1}' | head -n1 > /tmp/podflag
+            	  echo ${ARTIFACTSPATH}
+            	  podtest=`cat /tmp/podflag`
+            	  echo $podtest
+            	  oc rsync ${podtest}:${ARTIFACTSPATH}/ /tmp/ '''
+        }
+    	
+    	dir('build-curls'){
+    	stage 'build-curls'
+    	task 'create all sentenses with curl statement'
+        	
+            sh '''#!/usr/bin/env bash
+            
+            	  cat /tmp/${PROPERTIESFILE}
+            	  wcl=`wc -l /tmp/${PROPERTIESFILE}`
+            	  
+            	  echo "\n==========Inicia construccion de $wcl statements====================\n"
+            	  
+        	      while IFS= read -r linecurl
+                  do
+                           
+                      nexus_dirbase=`echo "$linecurl" | awk -F'|' '{print $1}'`
+                      artifact_type=`echo "$linecurl" | awk -F'|' '{print $2}'`
+                      artifact_name=`echo "$linecurl" | awk -F'|' '{print $3}'`
+                      artifact_group=`echo "$linecurl" | awk -F'|' '{print $4}'`
+                      artifact_id=`echo "$linecurl" | awk -F'|' '{print $5}'`
+                      artifact_version=`echo "$linecurl" | awk -F'|' '{print $6}'`
+                      artifact_ros=`echo "$linecurl" | awk -F'|' '{print $7}'`
+                      artifact_dc=`echo "$linecurl" | awk -F'|' '{print $8}'`
+            
+                      echo " --upload-file /tmp/$artifact_name.$artifact_type http://nexus.pro.pandora.mx.corp/repository/$nexus_dirbase/$artifact_group/$artifact_id/$artifact_ros-$artifact_version/$artifact_name-$artifact_ros-$artifact_version.$artifact_type" >> /tmp/curls.txt
+                      echo "http://nexus.pro.pandora.mx.corp/repository/$nexus_dirbase/$artifact_group/$artifact_id/$artifact_ros-$artifact_version/$artifact_name-$artifact_ros-$artifact_version.$artifact_type""|"$artifact_dc >> /tmp/urls_dc.txt
+                          
+                               
+                  done < /tmp/${PROPERTIESFILE}
+                  
+                  cat /tmp/urls_dc.txt
+                  cat /tmp/curls.txt '''
+    	}
+    	
+    	
+    	dir('upload-streaming'){
+    	stage 'upload-streaming'
+    	task 'execute all sentenses with curl statement'
+    	    wrap([$class: 'MaskPasswordsBuildWrapper', varPasswordPairs: [[password: "${env.NPASSWD}", var: 'NPASSWD']]]){
+                sh '''#!/usr/bin/env bash
+            	     
+        		      while IFS= read -r lineupld
+                      do
+                          curl -v -u $NPASSWD:$NPASSWD $lineupld
+                          
+                      done < /tmp/curls.txt '''
+            }	
+        }
+        
+        dir('namespace-updating'){
+    	stage 'namespace-updating'
+    	task 'updating ms in openshift'
+            sh '''#!/usr/bin/env bash
+                  echo "============>Inicia Stage para actualizacion en openshift<============"
+                  var=`cat /tmp/podflag`
+            	  dconfig=`echo ${var::-9}`
+                  echo "DC a actualizar: " $dconfig
+                  cat /tmp/urls_dc.txt
+                  
+                  while IFS= read -r linedc
+                  do
+                      dc_artifact_url=`echo "$linedc" | awk -F'|' '{print $1}'`
+                      dc_name=`echo "$linedc" | awk -F'|' '{print $2}'`
+                      
+                      oc set env dc/$dc_name ARTIFACT_URL=$dc_artifact_url
+                      
+                          
+                  done < /tmp/urls_dc.txt '''
+        }
+		
+    }

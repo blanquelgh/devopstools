@@ -1,0 +1,55 @@
+FROM ubuntu:latest
+RUN mkdir -p /opt/images
+RUN mkdir -p /opt/bot
+
+WORKDIR /opt/bot
+
+ENV http 8080
+EXPOSE 8080
+
+RUN apt-get clean 
+RUN apt-get update 
+RUN apt-get install -y \
+    ssh \
+    python3 \
+    python3-pip \
+    net-tools \
+    git \
+    software-properties-common \
+    unzip \
+    curl \
+    xvfb \
+    wget \
+    firefox 
+
+RUN rm -rf /var/lib/apt/lists/*
+
+ADD geckodriver-v0.23.0-linux64.tar.gz /opt/
+ADD . /opt/bot
+ADD . .
+
+RUN mv /opt/geckodriver /opt/geckodriver-0.23.0 
+RUN chmod 755 /opt/geckodriver-0.23.0 
+RUN ln -fs /opt/geckodriver-0.23.0 /usr/bin/geckodriver
+
+
+RUN addgroup -gid 2001 gpy3 && adduser --disabled-password --system --gid 2001  py3 
+RUN chown -R py3:gpy3 /opt/bot
+
+ARG SSH_PK
+ARG SSH_PP
+ARG SSH_KH
+RUN mkdir -p /home/py3/.ssh && \
+    chmod 0700 /home/py3/.ssh
+
+RUN echo "${SSH_PK}" > /home/py3/.ssh/id_rsa 
+RUN echo "${SSH_PP}" > /home/py3/.ssh/id_rsa.pub 
+RUN echo "${SSH_KH}" > /home/py3/.ssh/known_hosts
+
+RUN chown -R py3:gpy3 /home/py3/
+RUN chmod 400 /home/py3/.ssh/* 
+
+
+USER py3
+CMD ["sh", "botpython/start.sh"]
+#CMD tail -f /var/log/*
